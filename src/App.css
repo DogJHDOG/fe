@@ -10,6 +10,8 @@
     --accent-hover: #2563eb;
     --user-bg: #3b82f6;
     --assistant-bg: #f3f4f6;
+    --success: #10b981;
+    --danger: #ef4444;
 }
 
 * {
@@ -58,6 +60,9 @@ body {
 .nav {
     flex: 1;
     padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 .nav-button {
@@ -120,12 +125,31 @@ body {
     background: var(--bg-primary);
     border-bottom: 1px solid var(--border);
     padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .header h2 {
     font-size: 1.125rem;
     font-weight: 600;
     color: var(--text-primary);
+}
+
+.save-conversation-btn {
+    padding: 0.5rem 1rem;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.save-conversation-btn:hover {
+    background: var(--accent-hover);
 }
 
 .chat-container {
@@ -219,6 +243,7 @@ body {
 .card-footer {
     display: flex;
     justify-content: flex-end;
+    gap: 0.5rem;
 }
 
 .card-link {
@@ -352,6 +377,7 @@ textarea::placeholder {
     background: #9ca3af;
 }
 
+/* Bookmark */
 .bookmark-button {
     background: none;
     border: none;
@@ -371,23 +397,25 @@ textarea::placeholder {
 }
 
 .bookmarks-view {
-    padding: 1.5rem;
+    height: 100%;
+    overflow-y: auto;
+    padding: 20px;
 }
 
 .bookmarks-view h3 {
-    margin-bottom: 1rem;
-    color: var(--text-primary);
+    font-size: 24px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin: 0 0 24px 0;
 }
 
 .empty-message {
-    color: var(--text-secondary);
     text-align: center;
-    padding: 2rem;
+    color: #999;
+    padding: 60px 20px;
+    font-size: 16px;
 }
 
-/* 기존 스타일은 그대로 유지하고 아래 스타일을 추가하세요 */
-
-/* 북마크 그룹 스타일 */
 .bookmark-groups {
     display: flex;
     flex-direction: column;
@@ -428,29 +456,212 @@ textarea::placeholder {
     flex-shrink: 0;
 }
 
-.bookmark-group .cards {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-/* 북마크 뷰 전체 스타일 개선 */
-.bookmarks-view {
+/* Verified Conversations View */
+.verified-view {
     height: 100%;
     overflow-y: auto;
     padding: 20px;
 }
 
-.bookmarks-view h3 {
+.verified-view h3 {
     font-size: 24px;
     font-weight: 700;
     color: #1a1a1a;
     margin: 0 0 24px 0;
 }
 
-.empty-message {
-    text-align: center;
-    color: #999;
-    padding: 60px 20px;
-    font-size: 16px;
+.verified-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.verified-item {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.2s;
+}
+
+.verified-item:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.verified-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.verified-header h4 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    flex: 1;
+}
+
+.verified-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.action-btn {
+    padding: 6px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-btn:hover {
+    background: var(--bg-secondary);
+}
+
+.action-btn.download {
+    color: var(--accent);
+}
+
+.action-btn.download:hover {
+    background: #eff6ff;
+    border-color: var(--accent);
+}
+
+.action-btn.delete {
+    color: var(--danger);
+}
+
+.action-btn.delete:hover {
+    background: #fef2f2;
+    border-color: var(--danger);
+}
+
+.verified-date {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+.verified-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.preview-message {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.preview-message strong {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.preview-message span {
+    font-size: 14px;
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+/* Dialog */
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.dialog {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.dialog h3 {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 8px 0;
+}
+
+.dialog-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+}
+
+.dialog-input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    margin-bottom: 20px;
+}
+
+.dialog-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.dialog-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.dialog-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.dialog-btn.cancel {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.dialog-btn.cancel:hover {
+    background: #e5e7eb;
+}
+
+.dialog-btn.confirm {
+    background: var(--accent);
+    color: white;
+}
+
+.dialog-btn.confirm:hover:not(:disabled) {
+    background: var(--accent-hover);
+}
+
+.dialog-btn.confirm:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
