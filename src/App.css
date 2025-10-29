@@ -351,3 +351,36 @@ textarea::placeholder {
 .messages::-webkit-scrollbar-thumb:hover {
     background: #9ca3af;
 }
+
+.bookmark-button {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    cursor: pointer;
+    color: #9ca3af;
+    transition: color 0.2s;
+    padding: 0 0.5rem;
+}
+
+.bookmark-button:hover {
+    color: #fbbf24;
+}
+
+.bookmark-button.bookmarked {
+    color: #fbbf24;
+}
+
+.bookmarks-view {
+    padding: 1.5rem;
+}
+
+.bookmarks-view h3 {
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.empty-message {
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 2rem;
+}
