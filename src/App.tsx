@@ -15,7 +15,12 @@ interface KnowledgeCard {
 }
 
 interface BookmarkedCard extends KnowledgeCard {
-    timestamp: number; 
+    timestamp: number;
+    question: string; // 북마크가 생성된 질문
+}
+
+interface GroupedBookmarks {
+    [question: string]: BookmarkedCard[];
 }
 
 function App() {
@@ -35,6 +40,28 @@ function App() {
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    // 특정 카드가 속한 메시지의 바로 위 질문을 찾는 함수
+    const findQuestionForCard = (card: KnowledgeCard): string => {
+        // 메시지 배열을 역순으로 순회하면서 해당 카드를 포함한 assistant 메시지 찾기
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const msg = messages[i];
+            if (msg.role === 'assistant' && msg.cards) {
+                const hasCard = msg.cards.some(
+                    c => c.summary === card.summary && c.source === card.source
+                );
+                if (hasCard) {
+                    // 바로 위의 user 메시지 찾기
+                    for (let j = i - 1; j >= 0; j--) {
+                        if (messages[j].role === 'user') {
+                            return messages[j].content;
+                        }
+                    }
+                }
+            }
+        }
+        return '기타';
     };
 
     useEffect(() => {
@@ -63,7 +90,12 @@ function App() {
         if (isBookmarked) {
             newBookmarks = bookmarks.filter(b => `${b.summary}-${b.source}` !== cardId);
         } else {
-            newBookmarks = [...bookmarks, { ...card, timestamp: Date.now() }];
+            const question = findQuestionForCard(card); // 메시지 배열에서 질문 찾기
+            newBookmarks = [...bookmarks, { 
+                ...card, 
+                timestamp: Date.now(),
+                question: question
+            }];
         }
         
         setBookmarks(newBookmarks);
@@ -73,6 +105,26 @@ function App() {
     const isCardBookmarked = (card: KnowledgeCard) => {
         const cardId = `${card.summary}-${card.source}`;
         return bookmarks.some(b => `${b.summary}-${b.source}` === cardId);
+    };
+
+    // 북마크를 질문별로 그룹화하는 함수
+    const getGroupedBookmarks = (): GroupedBookmarks => {
+        const grouped: GroupedBookmarks = {};
+        
+        bookmarks.forEach(bookmark => {
+            const question = bookmark.question || '기타';
+            if (!grouped[question]) {
+                grouped[question] = [];
+            }
+            grouped[question].push(bookmark);
+        });
+        
+        // 각 그룹 내에서 타임스탬프 기준으로 정렬
+        Object.keys(grouped).forEach(key => {
+            grouped[key].sort((a, b) => b.timestamp - a.timestamp);
+        });
+        
+        return grouped;
     };
 
     const sendMessage = async () => {
@@ -130,6 +182,14 @@ function App() {
             sendMessage();
         }
     };
+
+    const groupedBookmarks = getGroupedBookmarks();
+    const questionGroups = Object.keys(groupedBookmarks).sort((a, b) => {
+        // 최신 북마크 기준으로 그룹 정렬
+        const latestA = Math.max(...groupedBookmarks[a].map(b => b.timestamp));
+        const latestB = Math.max(...groupedBookmarks[b].map(b => b.timestamp));
+        return latestB - latestA;
+    });
 
     return (
         <div className="app">
@@ -262,22 +322,33 @@ function App() {
                     {bookmarks.length === 0 ? (
                         <p className="empty-message">저장된 북마크가 없습니다.</p>
                     ) : (
-                        <div className="cards">
-                            {bookmarks.map((card, idx) => (
-                                <div key={idx} className="card">
-                                    <div className="card-content">
-                                        <p className="card-summary">{card.summary}</p>
-                                    </div>
-                                    <div className="card-footer">
-                                        <button 
-                                            className="bookmark-button bookmarked"
-                                            onClick={() => toggleBookmark(card)}
-                                        >
-                                            ★
-                                        </button>
-                                        <a href={card.source} target="_blank" rel="noopener noreferrer" className="card-link">
-                                            원문 보기
-                                        </a>
+                        <div className="bookmark-groups">
+                            {questionGroups.map((question, groupIdx) => (
+                                <div key={groupIdx} className="bookmark-group">
+                                    <h4 className="group-title">
+                                        <span className="question-icon">Q</span>
+                                        {question}
+                                    </h4>
+                                    <div className="cards">
+                                        {groupedBookmarks[question].map((card, idx) => (
+                                            <div key={idx} className="card">
+                                                <div className="card-content">
+                                                    <p className="card-summary">{card.summary}</p>
+                                                </div>
+                                                <div className="card-footer">
+                                                    <button 
+                                                        className="bookmark-button bookmarked"
+                                                        onClick={() => toggleBookmark(card)}
+                                                        title="북마크 해제"
+                                                    >
+                                                        ★
+                                                    </button>
+                                                    <a href={card.source} target="_blank" rel="noopener noreferrer" className="card-link">
+                                                        원문 보기
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             ))}
