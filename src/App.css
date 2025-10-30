@@ -148,8 +148,13 @@ body {
     transition: background 0.2s;
 }
 
-.save-conversation-btn:hover {
+.save-conversation-btn:hover:not(:disabled) {
     background: var(--accent-hover);
+}
+
+.save-conversation-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .chat-container {
@@ -648,7 +653,7 @@ textarea::placeholder {
     color: var(--text-primary);
 }
 
-.dialog-btn.cancel:hover {
+.dialog-btn.cancel:hover:not(:disabled) {
     background: #e5e7eb;
 }
 
@@ -661,7 +666,99 @@ textarea::placeholder {
     background: var(--accent-hover);
 }
 
-.dialog-btn.confirm:disabled {
+.dialog-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+}
+
+/* Analysis Section */
+.analysis-section {
+    margin-top: 16px;
+    padding: 16px;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.analysis-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 12px 0;
+}
+
+.analysis-summary {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+.insights-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.insight-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.insight-icon {
+    font-size: 16px;
+}
+
+.insight-topic {
+    font-weight: 500;
+}
+
+.verifications {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.verifications-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 8px 0;
+}
+
+.verification-item {
+    padding: 10px;
+    background: white;
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+.verification-item:last-child {
+    margin-bottom: 0;
+}
+
+.verification-summary {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    margin: 0 0 6px 0;
+}
+
+.verification-link {
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.verification-link:hover {
+    text-decoration: underline;
 }

@@ -23,11 +23,32 @@ interface GroupedBookmarks {
     [question: string]: BookmarkedCard[];
 }
 
+interface MetacognitiveInsight {
+    topic: string;
+    card_id: string;
+    search_keywords: string[];
+}
+
+interface ExternalVerification {
+    topic: string;
+    summary: string;
+    source: string;
+}
+
+interface ConversationAnalysis {
+    overall_summary: string;
+    metacognitive_insights: MetacognitiveInsight[];
+    external_verifications: ExternalVerification[];
+    analyzed_at?: string;
+    message_count?: number;
+}
+
 interface VerifiedConversation {
     id: string;
     title: string;
     messages: Message[];
     timestamp: number;
+    analysis?: ConversationAnalysis;
 }
 
 function App() {
@@ -47,6 +68,7 @@ function App() {
     const [currentView, setCurrentView] = useState<'chat' | 'bookmarks' | 'verified'>('chat');
     const [showSaveDialog, setShowSaveDialog] = useState(false);
     const [conversationTitle, setConversationTitle] = useState('');
+    const [analyzing, setAnalyzing] = useState(false);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -137,14 +159,54 @@ function App() {
         return grouped;
     };
 
-    const handleSaveConversation = () => {
+    const analyzeConversation = async (messagesToAnalyze: Message[]): Promise<ConversationAnalysis | null> => {
+        try {
+            setAnalyzing(true);
+            
+            // Filter out initial greeting
+            const relevantMessages = messagesToAnalyze.filter(
+                m => m.role !== 'assistant' || m.content !== '안녕하세요! 위키피디아 기반 AI 챗봇입니다. 무엇이 궁금하신가요?'
+            );
+            
+            const response = await fetch('http://localhost:8000/api/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    messages: relevantMessages.map(m => ({
+                        role: m.role,
+                        content: m.content
+                    }))
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Analysis failed: ${response.status}`);
+            }
+
+            const analysis: ConversationAnalysis = await response.json();
+            return analysis;
+        } catch (error) {
+            console.error('분석 중 오류 발생:', error);
+            return null;
+        } finally {
+            setAnalyzing(false);
+        }
+    };
+
+    const handleSaveConversation = async () => {
         if (!conversationTitle.trim()) return;
+
+        // Analyze conversation before saving
+        const analysis = await analyzeConversation(messages);
 
         const newConversation: VerifiedConversation = {
             id: Date.now().toString(),
             title: conversationTitle,
             messages: messages.filter(m => m.role !== 'assistant' || m.content !== '안녕하세요! 위키피디아 기반 AI 챗봇입니다. 무엇이 궁금하신가요?'),
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            analysis: analysis || undefined
         };
 
         const updatedConversations = [...verifiedConversations, newConversation];
@@ -167,14 +229,40 @@ function App() {
         markdown += `*저장일: ${new Date(conversation.timestamp).toLocaleString('ko-KR')}*\n\n`;
         markdown += `---\n\n`;
 
+        // Add analysis if available
+        if (conversation.analysis) {
+            markdown += `## 📊 대화 분석\n\n`;
+            markdown += `### 전체 요약\n${conversation.analysis.overall_summary}\n\n`;
+            
+            if (conversation.analysis.metacognitive_insights.length > 0) {
+                markdown += `### 🧠 메타인지 인사이트\n\n`;
+                conversation.analysis.metacognitive_insights.forEach((insight, idx) => {
+                    markdown += `${idx + 1}. **${insight.topic}** (${insight.card_id})\n`;
+                    markdown += `   - 검색 키워드: ${insight.search_keywords.join(', ')}\n\n`;
+                });
+            }
+            
+            if (conversation.analysis.external_verifications.length > 0) {
+                markdown += `### 🔍 외부 검증 정보\n\n`;
+                conversation.analysis.external_verifications.forEach((verification, idx) => {
+                    markdown += `${idx + 1}. **${verification.topic}**\n`;
+                    markdown += `   - ${verification.summary}\n`;
+                    markdown += `   - 출처: [${verification.source}](${verification.source})\n\n`;
+                });
+            }
+            
+            markdown += `---\n\n`;
+        }
+
+        markdown += `## 💬 대화 내용\n\n`;
         conversation.messages.forEach((msg) => {
             if (msg.role === 'user') {
-                markdown += `## 👤 질문\n\n${msg.content}\n\n`;
+                markdown += `### 👤 질문\n\n${msg.content}\n\n`;
             } else {
-                markdown += `## 🤖 답변\n\n${msg.content}\n\n`;
+                markdown += `### 🤖 답변\n\n${msg.content}\n\n`;
                 
                 if (msg.cards && msg.cards.length > 0) {
-                    markdown += `### 📚 관련 토막 정보\n\n`;
+                    markdown += `#### 📚 관련 토막 정보\n\n`;
                     msg.cards.forEach((card, idx) => {
                         markdown += `${idx + 1}. ${card.summary}\n`;
                         markdown += `   - 출처: [${card.source}](${card.source})\n\n`;
@@ -254,6 +342,16 @@ function App() {
         return latestB - latestA;
     });
 
+    const getCardIcon = (cardId: string): string => {
+        switch (cardId) {
+            case 'CARD_TRADE_OFF': return '⚖️';
+            case 'CARD_CONTEXT': return '💡';
+            case 'CARD_PRECONDITION': return '🎯';
+            case 'CARD_EDGE_CASE': return '🐛';
+            default: return '📝';
+        }
+    };
+
     return (
         <div className="app">
             {/* Sidebar */}
@@ -317,8 +415,9 @@ function App() {
                        <button 
                            className="save-conversation-btn"
                            onClick={() => setShowSaveDialog(true)}
+                           disabled={analyzing}
                        >
-                           대화 저장
+                           {analyzing ? '분석 중...' : '대화 저장'}
                        </button>
                    )}
                 </header>
@@ -487,6 +586,41 @@ function App() {
                                             <p className="verified-date">
                                                 {new Date(conv.timestamp).toLocaleString('ko-KR')}
                                             </p>
+                                            
+                                            {/* Analysis Section */}
+                                            {conv.analysis && (
+                                                <div className="analysis-section">
+                                                    <h5 className="analysis-title">📊 대화 분석</h5>
+                                                    <p className="analysis-summary">{conv.analysis.overall_summary}</p>
+                                                    
+                                                    {conv.analysis.metacognitive_insights.length > 0 && (
+                                                        <div className="insights-grid">
+                                                            {conv.analysis.metacognitive_insights.map((insight, idx) => (
+                                                                <div key={idx} className="insight-card">
+                                                                    <span className="insight-icon">{getCardIcon(insight.card_id)}</span>
+                                                                    <span className="insight-topic">{insight.topic}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {conv.analysis.external_verifications.length > 0 && (
+                                                        <div className="verifications">
+                                                            <h6 className="verifications-title">🔍 외부 검증</h6>
+                                                            {conv.analysis.external_verifications.map((ver, idx) => (
+                                                                <div key={idx} className="verification-item">
+                                                                    <p className="verification-summary">{ver.summary}</p>
+                                                                    <a href={ver.source} target="_blank" rel="noopener noreferrer" 
+                                                                       className="verification-link">
+                                                                        출처 확인
+                                                                    </a>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            
                                             <div className="verified-preview">
                                                 {conv.messages.slice(0, 2).map((msg, idx) => (
                                                     <div key={idx} className="preview-message">
@@ -505,10 +639,14 @@ function App() {
 
             {/* Save Dialog */}
             {showSaveDialog && (
-                <div className="dialog-overlay" onClick={() => setShowSaveDialog(false)}>
+                <div className="dialog-overlay" onClick={() => !analyzing && setShowSaveDialog(false)}>
                     <div className="dialog" onClick={(e) => e.stopPropagation()}>
-                        <h3>대화 저장</h3>
-                        <p className="dialog-desc">이 대화 내용을 검증된 대화로 저장합니다.</p>
+                        <h3>대화 저장 및 분석</h3>
+                        <p className="dialog-desc">
+                            {analyzing 
+                                ? '대화를 분석하고 있습니다. 잠시만 기다려주세요...'
+                                : '이 대화 내용을 검증된 대화로 저장하고 AI가 분석합니다.'}
+                        </p>
                         <input
                             type="text"
                             className="dialog-input"
@@ -516,10 +654,11 @@ function App() {
                             value={conversationTitle}
                             onChange={(e) => setConversationTitle(e.target.value)}
                             onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
+                                if (e.key === 'Enter' && !analyzing) {
                                     handleSaveConversation();
                                 }
                             }}
+                            disabled={analyzing}
                             autoFocus
                         />
                         <div className="dialog-actions">
@@ -529,15 +668,16 @@ function App() {
                                     setShowSaveDialog(false);
                                     setConversationTitle('');
                                 }}
+                                disabled={analyzing}
                             >
                                 취소
                             </button>
                             <button 
                                 className="dialog-btn confirm"
                                 onClick={handleSaveConversation}
-                                disabled={!conversationTitle.trim()}
+                                disabled={!conversationTitle.trim() || analyzing}
                             >
-                                저장
+                                {analyzing ? '분석 중...' : '저장'}
                             </button>
                         </div>
                     </div>
