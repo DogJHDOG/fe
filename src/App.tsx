@@ -33,6 +33,7 @@ interface ExternalVerification {
     topic: string;
     summary: string;
     source: string;
+    follow_up_questions: string[];  // 추가된 필드
 }
 
 interface ConversationAnalysis {
@@ -105,26 +106,42 @@ function App() {
     }, [input]);
 
     useEffect(() => {
+        console.log('🔄 [INIT] 앱 초기화 시작');
+        
         const savedBookmarks = localStorage.getItem('bookmarks');
         if (savedBookmarks) {
-            setBookmarks(JSON.parse(savedBookmarks));
+            const bookmarksData = JSON.parse(savedBookmarks);
+            console.log('📚 [LOAD] 북마크 로드:', bookmarksData);
+            setBookmarks(bookmarksData);
+        } else {
+            console.log('📚 [LOAD] 저장된 북마크 없음');
         }
 
         const savedConversations = localStorage.getItem('verifiedConversations');
         if (savedConversations) {
-            setVerifiedConversations(JSON.parse(savedConversations));
+            const conversationsData = JSON.parse(savedConversations);
+            console.log('✅ [LOAD] 검증된 대화 로드:', conversationsData);
+            setVerifiedConversations(conversationsData);
+        } else {
+            console.log('✅ [LOAD] 저장된 검증된 대화 없음');
         }
+        
+        console.log('🔄 [INIT] 앱 초기화 완료');
     }, []);
 
     const toggleBookmark = (card: KnowledgeCard) => {
+        console.log('⭐ [BOOKMARK] 북마크 토글 시도:', card);
+        
         const cardId = `${card.summary}-${card.source}`;
         const isBookmarked = bookmarks.some(b => `${b.summary}-${b.source}` === cardId);
         
         let newBookmarks;
         if (isBookmarked) {
+            console.log('⭐ [BOOKMARK] 북마크 제거');
             newBookmarks = bookmarks.filter(b => `${b.summary}-${b.source}` !== cardId);
         } else {
             const question = findQuestionForCard(card);
+            console.log('⭐ [BOOKMARK] 북마크 추가, 연결된 질문:', question);
             newBookmarks = [...bookmarks, { 
                 ...card, 
                 timestamp: Date.now(),
@@ -132,8 +149,10 @@ function App() {
             }];
         }
         
+        console.log('⭐ [BOOKMARK] 업데이트된 북마크 목록:', newBookmarks);
         setBookmarks(newBookmarks);
         localStorage.setItem('bookmarks', JSON.stringify(newBookmarks));
+        console.log('⭐ [BOOKMARK] localStorage에 저장 완료');
     };
 
     const isCardBookmarked = (card: KnowledgeCard) => {
@@ -161,12 +180,21 @@ function App() {
 
     const analyzeConversation = async (messagesToAnalyze: Message[]): Promise<ConversationAnalysis | null> => {
         try {
+            console.log('🔍 [ANALYZE] 대화 분석 시작');
+            console.log('🔍 [ANALYZE] 분석할 메시지 수:', messagesToAnalyze.length);
+            
             setAnalyzing(true);
             
             // Filter out initial greeting
             const relevantMessages = messagesToAnalyze.filter(
                 m => m.role !== 'assistant' || m.content !== '안녕하세요! 위키피디아 기반 AI 챗봇입니다. 무엇이 궁금하신가요?'
             );
+            
+            console.log('🔍 [ANALYZE] 필터링 후 메시지 수:', relevantMessages.length);
+            console.log('🔍 [ANALYZE] 전송할 메시지:', relevantMessages.map(m => ({
+                role: m.role,
+                content: m.content.substring(0, 50) + '...'
+            })));
             
             const response = await fetch('http://localhost:8000/api/analyze', {
                 method: 'POST',
@@ -181,22 +209,44 @@ function App() {
                 }),
             });
 
+            console.log('🔍 [ANALYZE] 응답 상태:', response.status);
+            console.log()
             if (!response.ok) {
                 throw new Error(`Analysis failed: ${response.status}`);
             }
 
             const analysis: ConversationAnalysis = await response.json();
+            console.log('🔍 [ANALYZE] 분석 결과 수신:', analysis);
+            console.log('🔍 [ANALYZE] - 전체 요약:', analysis.overall_summary);
+            console.log('🔍 [ANALYZE] - 메타인지 인사이트 수:', analysis.metacognitive_insights?.length || 0);
+            console.log('🔍 [ANALYZE] - 외부 검증 수:', analysis.external_verifications?.length || 0);
+            console.log('🔍 [ANALYZE] - 다음 질문:', analysis.external_verifications[0].follow_up_questions || []);
+            
+            if (analysis.external_verifications) {
+                analysis.external_verifications.forEach((ver, idx) => {
+                    console.log(`🔍 [ANALYZE] - 검증 ${idx + 1}:`, {
+                        topic: ver.topic,
+                        hasFollowUp: !!ver.follow_up_questions,
+                        followUpCount: ver.follow_up_questions?.length || 0
+                    });
+                });
+            }
+            
             return analysis;
         } catch (error) {
-            console.error('분석 중 오류 발생:', error);
+            console.error('❌ [ANALYZE] 분석 중 오류 발생:', error);
             return null;
         } finally {
             setAnalyzing(false);
+            console.log('🔍 [ANALYZE] 분석 완료');
         }
     };
 
     const handleSaveConversation = async () => {
         if (!conversationTitle.trim()) return;
+
+        console.log('💾 [SAVE] 대화 저장 시작');
+        console.log('💾 [SAVE] 제목:', conversationTitle);
 
         // Analyze conversation before saving
         const analysis = await analyzeConversation(messages);
@@ -209,32 +259,59 @@ function App() {
             analysis: analysis || undefined
         };
 
+        console.log('💾 [SAVE] 저장할 대화 데이터:', {
+            id: newConversation.id,
+            title: newConversation.title,
+            messageCount: newConversation.messages.length,
+            hasAnalysis: !!newConversation.analysis,
+            timestamp: new Date(newConversation.timestamp).toLocaleString()
+        });
+
         const updatedConversations = [...verifiedConversations, newConversation];
+        console.log('💾 [SAVE] 업데이트된 대화 목록 (총 개수):', updatedConversations.length);
+        
         setVerifiedConversations(updatedConversations);
         localStorage.setItem('verifiedConversations', JSON.stringify(updatedConversations));
+        console.log('💾 [SAVE] localStorage에 저장 완료');
         
         setShowSaveDialog(false);
         setConversationTitle('');
         setCurrentView('verified');
+        console.log('💾 [SAVE] 검증된 대화 뷰로 이동');
     };
 
     const deleteConversation = (id: string) => {
+        console.log('🗑️ [DELETE] 대화 삭제 시도, ID:', id);
+        
+        const conversationToDelete = verifiedConversations.find(c => c.id === id);
+        if (conversationToDelete) {
+            console.log('🗑️ [DELETE] 삭제할 대화:', conversationToDelete.title);
+        }
+        
         const updatedConversations = verifiedConversations.filter(c => c.id !== id);
+        console.log('🗑️ [DELETE] 삭제 후 남은 대화 수:', updatedConversations.length);
+        
         setVerifiedConversations(updatedConversations);
         localStorage.setItem('verifiedConversations', JSON.stringify(updatedConversations));
+        console.log('🗑️ [DELETE] 삭제 완료 및 localStorage 업데이트');
     };
 
     const downloadAsMarkdown = (conversation: VerifiedConversation) => {
+        console.log('📥 [DOWNLOAD] 마크다운 다운로드 시작');
+        console.log('📥 [DOWNLOAD] 대화 제목:', conversation.title);
+        
         let markdown = `# ${conversation.title}\n\n`;
         markdown += `*저장일: ${new Date(conversation.timestamp).toLocaleString('ko-KR')}*\n\n`;
         markdown += `---\n\n`;
 
         // Add analysis if available
         if (conversation.analysis) {
-            markdown += `## 📊 대화 분석\n\n`;
+            console.log('📥 [DOWNLOAD] 분석 데이터 포함');
+            markdown += `## 대화 분석\n\n`;
             markdown += `### 전체 요약\n${conversation.analysis.overall_summary}\n\n`;
             
             if (conversation.analysis.metacognitive_insights.length > 0) {
+                console.log('📥 [DOWNLOAD] 메타인지 인사이트 수:', conversation.analysis.metacognitive_insights.length);
                 markdown += `### 🧠 메타인지 인사이트\n\n`;
                 conversation.analysis.metacognitive_insights.forEach((insight, idx) => {
                     markdown += `${idx + 1}. **${insight.topic}** (${insight.card_id})\n`;
@@ -243,6 +320,7 @@ function App() {
             }
             
             if (conversation.analysis.external_verifications.length > 0) {
+                console.log('📥 [DOWNLOAD] 외부 검증 수:', conversation.analysis.external_verifications.length);
                 markdown += `### 🔍 외부 검증 정보\n\n`;
                 conversation.analysis.external_verifications.forEach((verification, idx) => {
                     markdown += `${idx + 1}. **${verification.topic}**\n`;
@@ -255,6 +333,8 @@ function App() {
         }
 
         markdown += `## 💬 대화 내용\n\n`;
+        console.log('📥 [DOWNLOAD] 메시지 수:', conversation.messages.length);
+        
         conversation.messages.forEach((msg) => {
             if (msg.role === 'user') {
                 markdown += `### 👤 질문\n\n${msg.content}\n\n`;
@@ -271,6 +351,8 @@ function App() {
             }
         });
 
+        console.log('📥 [DOWNLOAD] 마크다운 생성 완료, 길이:', markdown.length);
+
         const blob = new Blob([markdown], { type: 'text/markdown' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -278,13 +360,99 @@ function App() {
         a.download = `${conversation.title}.md`;
         a.click();
         URL.revokeObjectURL(url);
+        
+        console.log('📥 [DOWNLOAD] 다운로드 완료');
+    };
+
+    // 새로운 함수: 후속 질문으로 채팅 시작
+    const startChatWithQuestion = async (question: string) => {
+        console.log('🔄 [FOLLOW-UP] 후속 질문으로 채팅 시작');
+        console.log('🔄 [FOLLOW-UP] 질문:', question);
+        
+        // 채팅 뷰로 전환
+        setCurrentView('chat');
+        console.log('🔄 [FOLLOW-UP] 채팅 뷰로 전환');
+        
+        // input에 질문 설정
+        setInput(question);
+        console.log('🔄 [FOLLOW-UP] input에 질문 설정 완료');
+        
+        // 잠시 후 자동으로 전송
+        setTimeout(async () => {
+            console.log('🔄 [FOLLOW-UP] 질문 자동 전송 시작');
+            
+            const userMessage: Message = { role: 'user', content: question };
+            setMessages((prev) => {
+                console.log('🔄 [FOLLOW-UP] 이전 메시지 수:', prev.length);
+                return [...prev, userMessage];
+            });
+            setInput('');
+            setLoading(true);
+
+            try {
+                const conversationHistory = messages.map((m) => m.content);
+                conversationHistory.push(question);
+                
+                console.log('🔄 [FOLLOW-UP] API 호출 시작');
+                console.log('🔄 [FOLLOW-UP] 대화 히스토리 길이:', conversationHistory.length);
+
+                const response = await fetch('http://localhost:8000/api/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        question: conversationHistory,
+                    }),
+                });
+
+                console.log('🔄 [FOLLOW-UP] API 응답 상태:', response.status);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('🔄 [FOLLOW-UP] API 응답 데이터:', data);
+                console.log('🔄 [FOLLOW-UP] 지식 카드 수:', data.cards?.length || 0);
+
+                const assistantMessage: Message = {
+                    role: 'assistant',
+                    content: data.answer,
+                    cards: data.cards || [],
+                };
+                
+                setMessages((prev) => {
+                    console.log('🔄 [FOLLOW-UP] 응답 추가 후 총 메시지 수:', prev.length + 1);
+                    return [...prev, assistantMessage];
+                });
+                
+                console.log('🔄 [FOLLOW-UP] 질문 및 응답 완료');
+            } catch (error) {
+                console.error('❌ [FOLLOW-UP] 오류 발생:', error);
+                const errorMessage: Message = {
+                    role: 'assistant',
+                    content: '죄송합니다. 오류가 발생했습니다.',
+                };
+                setMessages((prev) => [...prev, errorMessage]);
+            } finally {
+                setLoading(false);
+                console.log('🔄 [FOLLOW-UP] 로딩 상태 해제');
+            }
+        }, 100);
     };
 
     const sendMessage = async () => {
         if (!input.trim() || loading) return;
 
+        console.log('💬 [SEND] 메시지 전송 시작');
+        console.log('💬 [SEND] 입력:', input);
+
         const userMessage: Message = { role: 'user', content: input };
-        setMessages((prev) => [...prev, userMessage]);
+        setMessages((prev) => {
+            console.log('💬 [SEND] 이전 메시지 수:', prev.length);
+            return [...prev, userMessage];
+        });
         const currentInput = input;
         setInput('');
         setLoading(true);
@@ -292,6 +460,9 @@ function App() {
         try {
             const conversationHistory = messages.map((m) => m.content);
             conversationHistory.push(currentInput);
+            
+            console.log('💬 [SEND] API 호출 시작');
+            console.log('💬 [SEND] 대화 히스토리 길이:', conversationHistory.length);
 
             const response = await fetch('http://localhost:8000/api/query', {
                 method: 'POST',
@@ -303,21 +474,38 @@ function App() {
                 }),
             });
 
+            console.log('💬 [SEND] API 응답 상태:', response.status);
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
             const data = await response.json();
-            console.log('Received data:', data);
+            console.log('💬 [SEND] API 응답 데이터:', data);
+            console.log('💬 [SEND] 답변 길이:', data.answer?.length || 0);
+            console.log('💬 [SEND] 지식 카드 수:', data.cards?.length || 0);
+            
+            if (data.cards && data.cards.length > 0) {
+                console.log('💬 [SEND] 지식 카드 상세:', data.cards.map((c: KnowledgeCard) => ({
+                    summary: c.summary.substring(0, 50) + '...',
+                    source: c.source
+                })));
+            }
 
             const assistantMessage: Message = {
                 role: 'assistant',
                 content: data.answer,
                 cards: data.cards || [],
             };
-            setMessages((prev) => [...prev, assistantMessage]);
+            
+            setMessages((prev) => {
+                console.log('💬 [SEND] 응답 추가 후 총 메시지 수:', prev.length + 1);
+                return [...prev, assistantMessage];
+            });
+            
+            console.log('💬 [SEND] 메시지 전송 완료');
         } catch (error) {
-            console.error('Error:', error);
+            console.error('❌ [SEND] 오류 발생:', error);
             const errorMessage: Message = {
                 role: 'assistant',
                 content: '죄송합니다. 오류가 발생했습니다.',
@@ -325,6 +513,7 @@ function App() {
             setMessages((prev) => [...prev, errorMessage]);
         } finally {
             setLoading(false);
+            console.log('💬 [SEND] 로딩 상태 해제');
         }
     };
 
@@ -590,7 +779,7 @@ function App() {
                                             {/* Analysis Section */}
                                             {conv.analysis && (
                                                 <div className="analysis-section">
-                                                    <h5 className="analysis-title">📊 대화 분석</h5>
+                                                    <h5 className="analysis-title">대화 분석</h5>
                                                     <p className="analysis-summary">{conv.analysis.overall_summary}</p>
                                                     
                                                     {conv.analysis.metacognitive_insights.length > 0 && (
@@ -606,14 +795,39 @@ function App() {
                                                     
                                                     {conv.analysis.external_verifications.length > 0 && (
                                                         <div className="verifications">
-                                                            <h6 className="verifications-title">🔍 외부 검증</h6>
+                                                            <h6 className="verifications-title">새로운 학습 내용이 도착했어요</h6>
                                                             {conv.analysis.external_verifications.map((ver, idx) => (
                                                                 <div key={idx} className="verification-item">
                                                                     <p className="verification-summary">{ver.summary}</p>
-                                                                    <a href={ver.source} target="_blank" rel="noopener noreferrer" 
-                                                                       className="verification-link">
-                                                                        출처 확인
-                                                                    </a>
+                                                                    <div className="verification-footer">
+                                                                        <a href={ver.source} target="_blank" rel="noopener noreferrer" 
+                                                                           className="verification-link">
+                                                                            출처 확인
+                                                                        </a>
+                                                                    </div>
+                                                                    
+                                                                    {/* 후속 질문 버튼들 */}
+                                                                    {ver.follow_up_questions && ver.follow_up_questions.length > 0 && (
+                                                                        <div className="follow-up-questions">
+                                                                            <p className="follow-up-label">후속 질문</p>
+                                                                            <div className="follow-up-buttons">
+                                                                                {ver.follow_up_questions.map((question, qIdx) => (
+                                                                                    <button
+                                                                                        key={qIdx}
+                                                                                        className="follow-up-btn"
+                                                                                        onClick={() => startChatWithQuestion(question)}
+                                                                                        title="이 질문으로 새 대화 시작"
+                                                                                    >
+                                                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                                                                                d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                                                                                        </svg>
+                                                                                        {question}
+                                                                                    </button>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             ))}
                                                         </div>
@@ -621,14 +835,14 @@ function App() {
                                                 </div>
                                             )}
                                             
-                                            <div className="verified-preview">
+                                            {/* <div className="verified-preview">
                                                 {conv.messages.slice(0, 2).map((msg, idx) => (
                                                     <div key={idx} className="preview-message">
                                                         <strong>{msg.role === 'user' ? '질문:' : '답변:'}</strong>
                                                         <span>{msg.content.substring(0, 100)}...</span>
                                                     </div>
                                                 ))}
-                                            </div>
+                                            </div> */}
                                         </div>
                                     ))}
                             </div>
